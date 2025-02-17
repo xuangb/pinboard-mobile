@@ -2,17 +2,52 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import './dashboard_page.dart';
 import './sign_up_page.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../controllers/auth_controller.dart'; 
+
+
 
 class SignInPage extends StatefulWidget {
   const SignInPage({super.key});
 
   @override
-  State<SignInPage> createState() => _SignInPageState();
+  State<SignInPage> createState() => SignInPageState();
 }
 
-class _SignInPageState extends State<SignInPage> {
+class SignInPageState extends State<SignInPage> {
+  final _authController = AuthController();
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
+  bool _isLoading = false;
   bool _obscurePassword = true;
+
+  void _handleSignIn() async {
+    setState(() {
+      _isLoading = true;  // Show loading spinner
+    });
+
+    final username = _usernameController.text;
+    final password = _passwordController.text;
+
+    bool success = await _authController.signIn(username, password);
+
+    setState(() {
+      _isLoading = false;  // Stop loading spinner
+    });
+
+    if (success) {
+      Navigator.pushReplacementNamed(context, "/dashboard");
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Invalid credentials!")),
+      );
+    }
+  }
+
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -192,6 +227,7 @@ class _SignInPageState extends State<SignInPage> {
       children: [
         const Text('Username', style: TextStyle(fontSize: 20, color: Colors.redAccent)),
         TextField(
+          controller: _usernameController,
           decoration: const InputDecoration(
             hintText: 'Enter your username',
             enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.black)),
@@ -202,6 +238,7 @@ class _SignInPageState extends State<SignInPage> {
           fontSize: 20, 
           color: Colors.redAccent)),
         TextField(
+          controller: _passwordController,
           obscureText: _obscurePassword,
           decoration: InputDecoration(
             suffixIcon: IconButton(
@@ -224,42 +261,38 @@ class _SignInPageState extends State<SignInPage> {
   }
 
   Widget _buildSignInButton(BuildContext context) {
-  return SizedBox(
-    width: double.infinity,
-    height: 60,
-    child: Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF6D0900), Color(0xFFD83F31)],
-          begin: Alignment.centerRight,
-          end: Alignment.centerLeft,
-        ),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+    return SizedBox(
+      width: double.infinity,
+      height: 60,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF6D0900), Color(0xFFD83F31)],
+            begin: Alignment.centerRight,
+            end: Alignment.centerLeft,
           ),
+          borderRadius: BorderRadius.circular(10),
         ),
-        onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => DashboardPage(),
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
             ),
           ),
-        child: const Text(
-          'SIGN IN',
-          style: TextStyle(
-            color: Colors.white, 
-            fontSize: 18, 
-            fontWeight: FontWeight.w700),
+          onPressed: _handleSignIn,
+          child: _isLoading
+              ? const CircularProgressIndicator(color: Colors.white)
+              : const Text(
+                  'SIGN IN',
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+                ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
+
 
   Widget _buildSignUpText(BuildContext context) {
     return Column(
@@ -337,4 +370,56 @@ class _SignInPageState extends State<SignInPage> {
         ],
       );
     }
+
+  Future<void> _signIn(BuildContext context) async {
+  final url = Uri.parse('https://your-api-url.com/auth/login'); // Replace with your API URL
+
+  // Sample credentials
+  final Map<String, String> credentials = {
+    "username": _usernameController.text,  // Make sure you create these controllers
+    "password": _passwordController.text,
+  };
+
+  try {
+    final response = await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode(credentials),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      print("Login Successful: ${data['token']}");
+
+      // Navigate to the dashboard
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => DashboardPage()),
+      );
+    } else {
+      print("Login Failed: ${response.body}");
+      _showErrorDialog(context, "Invalid username or password");
+    }
+  } catch (e) {
+    print("Error: $e");
+    _showErrorDialog(context, "An error occurred. Please try again.");
+  }
+}
+
+void _showErrorDialog(BuildContext context, String message) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text("Login Failed"),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("OK"),
+        ),
+      ],
+    ),
+  );
+}
+
+
 }
