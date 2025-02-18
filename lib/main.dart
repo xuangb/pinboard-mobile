@@ -241,7 +241,6 @@ class MyApp extends StatelessWidget {
         '/sign-in': (context) => const SignInPage(),
         '/sign-up':  (context) => const SignUpPage(),
         '/dashboard': (context) => const DashboardPage(),
-        // Add other routes as necessary
       },
       onGenerateRoute: (settings) {
         return MaterialPageRoute(

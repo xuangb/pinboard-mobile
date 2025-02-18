@@ -1,18 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import './sign_in_page.dart';
+import '../controllers/auth_controller.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
 
   @override
-  _SignUpPageState createState() => _SignUpPageState();
+  SignUpPageState createState() => SignUpPageState();
 }
 
-class _SignUpPageState extends State<SignUpPage> {
+class SignUpPageState extends State<SignUpPage> {
   final _formKey = GlobalKey<FormState>();
+  final AuthController _authController = AuthController();
+
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _fullnameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
+
+  Future<void> _handleSignUp() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    bool success = await _authController.signUp(
+      _usernameController.text.trim(),
+      _fullnameController.text.trim(),
+      _emailController.text.trim(),
+      _passwordController.text,
+      _confirmPasswordController.text,
+    );
+
+    setState(() => _isLoading = false);
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Account created! Please log in.")),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const SignInPage()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("❌ Sign-up failed. Try again.")),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,11 +107,11 @@ class _SignUpPageState extends State<SignUpPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 10),
-                      _buildTextField("Username"),
-                      _buildTextField("Full Name"),
-                      _buildTextField("Email"),
-                      _buildPasswordField("Password", true),
-                      _buildPasswordField("Confirm Password", false),
+                      _buildTextField("Username", _usernameController),
+                      _buildTextField("Full Name", _fullnameController),
+                      _buildTextField("Email", _emailController, isEmail: true),
+                      _buildPasswordField("Password", _passwordController, true),
+                      _buildPasswordField("Confirm Password", _confirmPasswordController,false),
                       const SizedBox(height: 20),
                       _buildSignUpButton(),
                       const SizedBox(height: 30),
@@ -176,12 +216,12 @@ class _SignUpPageState extends State<SignUpPage> {
         );
       }
 
-  Widget _buildTextField(String label) {
+  Widget _buildTextField(String label, TextEditingController controller, {bool isEmail = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label,
+          label, 
           style: const TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.w500,
@@ -191,6 +231,9 @@ class _SignUpPageState extends State<SignUpPage> {
         ),
         const SizedBox(height: 5),
         TextFormField(
+          controller: controller,
+          keyboardType: isEmail ? TextInputType.emailAddress : TextInputType.text,
+          validator: (value) => value ==null||value.isEmpty? "⚠️ Required field" : null,
           decoration: const InputDecoration(
             border: UnderlineInputBorder(),
           ),
@@ -200,7 +243,7 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
-  Widget _buildPasswordField(String label, bool isPassword) {
+  Widget _buildPasswordField(String label, TextEditingController controller, bool isPassword) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -215,7 +258,9 @@ class _SignUpPageState extends State<SignUpPage> {
         ),
         const SizedBox(height: 5),
         TextFormField(
+          controller: controller,
           obscureText: isPassword ? _obscurePassword : _obscureConfirmPassword,
+          validator: (value) => value == null||value.length<6 ? "⚠️ Min. 6 characters" : null,
           decoration: InputDecoration(
             suffixIcon: IconButton(
               icon: Icon(
