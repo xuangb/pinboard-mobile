@@ -1,0 +1,2 @@
+D:/Github/pinboard-mobile/android/app/.cxx/Debug/5j2kg4fz/x86_64/CMakeFiles/edit_cache.dir
+D:/Github/pinboard-mobile/android/app/.cxx/Debug/5j2kg4fz/x86_64/CMakeFiles/rebuild_cache.dir

@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import './dashboard_page.dart';
 import './sign_up_page.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import '../controllers/auth_controller.dart'; 
-
 
 
 class SignInPage extends StatefulWidget {
@@ -23,9 +20,39 @@ class SignInPageState extends State<SignInPage> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  @override
+  void initState() {
+    super.initState();
+    _checkExistingSession();
+    _checkConnection();
+  }
+
+  void _checkExistingSession() async {
+    if (await _authController.isSignedIn()) {
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const DashboardPage()),
+        );
+      }
+    }
+  }
+
+  void _checkConnection() async {
+    bool isConnected = await _authController.verifyConnection();
+    print('API Connection status: ${isConnected ? 'Success' : 'Failed'}');
+  }
+
   void _handleSignIn() async {
+    if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter both username and password")),
+      );
+      return;
+    }
+
     setState(() {
-      _isLoading = true;  // Show loading spinner
+      _isLoading = true;
     });
 
     final username = _usernameController.text;
@@ -34,15 +61,23 @@ class SignInPageState extends State<SignInPage> {
     bool success = await _authController.signIn(username, password);
 
     setState(() {
-      _isLoading = false;  // Stop loading spinner
+      _isLoading = false;
     });
 
     if (success) {
-      Navigator.pushReplacementNamed(context, "/dashboard");
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Invalid credentials!")),
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const DashboardPage()),
       );
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Invalid credentials. Please try again."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -370,40 +405,6 @@ class SignInPageState extends State<SignInPage> {
         ],
       );
     }
-
-  Future<void> _signIn(BuildContext context) async {
-  final url = Uri.parse('https://your-api-url.com/auth/login'); // Replace with your API URL
-
-  // Sample credentials
-  final Map<String, String> credentials = {
-    "username": _usernameController.text,  // Make sure you create these controllers
-    "password": _passwordController.text,
-  };
-
-  try {
-    final response = await http.post(
-      url,
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(credentials),
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      print("Login Successful: ${data['token']}");
-
-      // Navigate to the dashboard
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => DashboardPage()),
-      );
-    } else {
-      print("Login Failed: ${response.body}");
-      _showErrorDialog(context, "Invalid username or password");
-    }
-  } catch (e) {
-    print("Error: $e");
-    _showErrorDialog(context, "An error occurred. Please try again.");
-  }
-}
 
 void _showErrorDialog(BuildContext context, String message) {
   showDialog(

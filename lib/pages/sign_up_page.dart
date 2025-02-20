@@ -24,11 +24,28 @@ class SignUpPageState extends State<SignUpPage> {
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
 
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _fullnameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
   Future<void> _handleSignUp() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    if (_passwordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("❌ Passwords do not match")),
+      );
+      return;
+    }
 
+    setState(() => _isLoading = true);
+    
     bool success = await _authController.signUp(
       _usernameController.text.trim(),
       _fullnameController.text.trim(),
@@ -307,16 +324,17 @@ class SignUpPageState extends State<SignUpPage> {
             borderRadius: BorderRadius.circular(10),
           ),
         ),
-        onPressed: () {
-
-        },
-        child: const Text(
-          'SIGN UP',
-          style: TextStyle(
-            color: Colors.white, 
-            fontSize: 18, 
-            fontWeight: FontWeight.w700),
-        ),
+        onPressed: _handleSignUp,
+        child: _isLoading
+            ? const CircularProgressIndicator(color: Colors.white)
+            : const Text(
+                'SIGN UP',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
       ),
     ),
   );
