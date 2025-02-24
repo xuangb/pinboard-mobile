@@ -1,10 +1,21 @@
+//dependencies
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart';
+import 'package:pinboard/controllers/auth_controller.dart';
+
+//pages
 import './sign_in_page.dart';
 import './update_profile.dart';
 import './post_page.dart';
 import './pinned_page.dart';
 import './comment_page.dart';
+
+//controllers
+import '../controllers/user_controller.dart';
+import '../controllers/post_controller.dart';
+import '../controllers/pinpost_controller.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -13,32 +24,97 @@ class DashboardPage extends StatefulWidget {
 }
 
 class DashboardPageState extends State<DashboardPage> {
-  List<Map<String, String>> posts = [];
-  Map<int, bool> expandedPosts = {};
-  Map<int, bool> pinnedPosts = {};
   final ScrollController _scrollController = ScrollController();
+  final PostController _postController = PostController();
+  final AuthController _authController = AuthController();
+  final PinPostController _pinPostController = PinPostController();
+
+  List<Map<String, dynamic>> posts = [];
+  Map<String, bool> expandedPosts = {};
+  List<Map<String, dynamic>> pinnedPosts = [];
+  String _userName = "Loading....";
+  String _userId = "0";
+
 
   @override
   void dispose() {
-    _scrollController.dispose(); // Dispose controller to prevent memory leaks
+    _scrollController.dispose(); 
     super.dispose();
   }
 
-  void _addPost(Map<String, String> newPost) {
-    setState(() {
-      posts.insert(0, newPost); // Insert new post at the top
-    });
+  @override
+  void initState(){
+    super.initState();
+    _loadUserName();
+_fetchPostsAndPinned();
+    _checkConnection();
   }
 
-  void _navigateToPostPage(BuildContext context) async {
-    final newPost = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => PostPage()),
-    );
-    if (newPost != null) {
-      _addPost(newPost); // Add new post if data is returned
-    }
+  void _checkConnection() async {
+    bool isConnected = await _postController.verifyConnection();
+    print('API Connection status: ${isConnected ? 'Success' : 'Failed'}');
   }
+
+  void _loadUserName() async {
+    String? name = await _authController.getFullName();
+    String? userId = await _authController.getUserId();
+
+    setState(() {
+      _userName = name ?? "Unknown User";
+      _userId = userId ?? "0"; // Correct assignment
+    });
+    print("User name: $_userName");
+    print("User ID: $_userId");
+  }
+
+  // void _fetchPosts() async {
+  //   List<dynamic> fetchedPosts = await _postController.fetchPosts();
+  //   setState(() {
+  //     posts = List<Map<String, dynamic>>.from(fetchedPosts);
+  //   });
+  //   _loadUserName();
+  //   _fetchPinnedPosts();
+  // }
+
+  // void _fetchPinnedPosts() async {
+  //   print("Fetching pinned posts for User ID: $_userId");
+  //   List<dynamic> fetchPinnedPosts = await _pinPostController.getPinnedPosts(_userId);
+  //   setState(() {
+  //     pinnedPosts = List<Map<String, dynamic>>.from(fetchPinnedPosts);
+  //   });
+  //   print("fetched pinned: $pinnedPosts");
+  // }
+
+  void _fetchPostsAndPinned() async {
+  // Fetch posts first
+  List<dynamic> fetchedPosts = await _postController.fetchPosts();
+  setState(() {
+    posts = List<Map<String, dynamic>>.from(fetchedPosts);
+  });
+
+  // Then fetch pinned posts
+  List<dynamic> fetchedPinnedPosts = await _pinPostController.getPinnedPosts(_userId);
+  setState(() {
+    pinnedPosts = List<Map<String, dynamic>>.from(fetchedPinnedPosts);
+  });
+
+  print("fetched pinned: $pinnedPosts");
+}
+
+  void _togglePinStatus(String postId) async {
+  bool isPinned = pinnedPosts.any((post) => post["postId"] == postId);
+
+  if (isPinned) {
+    await _pinPostController.unpinPost(postId, _userId);
+  } else {
+    await _pinPostController.pinPost(postId, _userId);
+  }
+
+  // Refresh the pinned posts to reflect the changes
+  _fetchPostsAndPinned();
+}
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +129,7 @@ class DashboardPageState extends State<DashboardPage> {
         ),
         child: Column(
           children: [
-            const SizedBox(height: 50),
+            const SizedBox(height: 35),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 15.0),
               child: Row(
@@ -91,41 +167,39 @@ class DashboardPageState extends State<DashboardPage> {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Home Button (SVG)
               IconButton(
-                icon: SvgPicture.asset("assets/icons/home.svg", width: 30, height: 30),
+                icon: SvgPicture.asset("assets/icons/home.svg", width: 25, height: 25),
                 onPressed: () {
                   _scrollController.animateTo(
-                    0.0, // Scroll to the top
-                    duration: const Duration(milliseconds: 500), // Smooth scroll
+                    0.0, 
+                    duration: const Duration(milliseconds: 500), 
                     curve: Curves.easeInOut,
                   );
+                  _fetchPostsAndPinned();
                 },
               ),
+            const SizedBox(width: 15), 
 
-              const SizedBox(width: 15), 
-
-              // Add Button (Prominent Floating Button)
             IconButton(
-              icon: SvgPicture.asset("assets/icons/circle-plus.svg", width: 40, height: 40),
-              onPressed: () => _navigateToPostPage(context),
+              icon: SvgPicture.asset("assets/icons/circle-plus.svg", width: 28, height: 28),
+              onPressed: () => 
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => PostPage(userId: _userId,)),
+              )
             ),
 
               const SizedBox(width: 15), 
-
-              // Pin Button (SVG)
               Transform.rotate(
                 angle: 0.65, 
                 child: IconButton(
                   icon: Icon(
                     Icons.push_pin_outlined,
-                    size: 30, 
+                    size: 25, 
                   ),
                   color: Colors.white.withOpacity(0.7),
                   onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PinnedPage(pinnedPosts: [],),
-                    ),
+                    MaterialPageRoute(builder: (_) => PinnedPage()),
                   ),
                 ),
               ),
@@ -149,8 +223,8 @@ class DashboardPageState extends State<DashboardPage> {
           children: [
             const Icon(Icons.account_circle, color: Colors.white, size: 18),
             const SizedBox(width: 5),
-            const Text(
-              "John Doe Jr.",
+            Text(
+              "$_userId $_userName",
               style: TextStyle(color: Colors.white, fontSize: 14, letterSpacing: 2),
             ),
             const SizedBox(width: 5)
@@ -160,10 +234,9 @@ class DashboardPageState extends State<DashboardPage> {
     );
   }
 
-
-  IconButton _buildUpdateProfile(BuildContext context) {
+  Widget _buildUpdateProfile(BuildContext context) {
     return IconButton(
-      icon: const Icon(Icons.settings, color: Colors.white),
+      icon: const Icon(Icons.settings_outlined, color: Colors.white),
       onPressed: () {
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => UpdateProfilePage()),
@@ -172,7 +245,7 @@ class DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Row _buildTitle() {
+  Widget _buildTitle() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -200,7 +273,7 @@ class DashboardPageState extends State<DashboardPage> {
                 ),
               ),
               const Text(
-                "BULLETIN",
+                "PIN BOARD",
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,
@@ -219,15 +292,23 @@ class DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Expanded _buildPostBox() {
+  Widget _buildPostBox() {
     return Expanded(
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-        itemCount: posts.length,
+        controller: _scrollController,
+        itemCount: posts.length + 1,
         itemBuilder: (context, index){
+          if(index == posts.length){
+            return const SizedBox(height: 80);
+          }
+
           String fullContent = posts[index]["content"]??"";
-          bool isExpanded = expandedPosts[index]??false;
-          bool isPinned = pinnedPosts[index]?? false;
+          final post = posts[index];
+          final postId = post["postId"];
+
+          bool isExpanded = expandedPosts[postId]??false;
+          bool isPinned = pinnedPosts.any((post)=>post["id"] == postId);
 
           return Container(
             padding: const EdgeInsets.all(12),
@@ -241,14 +322,37 @@ class DashboardPageState extends State<DashboardPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.account_circle, color: Colors.black, size: 18),
+                        Text(
+                          posts[index]["user"]?["fullName"]??"",
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500)
+                        ),
+                      ],
+                    ),
+                    Text(
+                      getRelativeTime(posts[index]["dateCreated"] ?? DateTime.now().toString()),
+                      style:TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold
+                      )
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
                 Text(
                   posts[index]["title"]??"",
-                  style: const TextStyle(
-                    fontSize: 18,
+                  style:TextStyle(
+                    fontSize: 15,
                     fontWeight: FontWeight.bold)
                 ),
-                const SizedBox(height: 5),
-
+                const SizedBox(height: 10),
                 Text(
                   fullContent,
                   maxLines: isExpanded ? null: 3,
@@ -262,32 +366,33 @@ class DashboardPageState extends State<DashboardPage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                   GestureDetector(
-                    child: Row(
-                      children: [
-                        Text(
-                          posts[index]["commentCount"]??"24",
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                        ),
-                        const SizedBox(width: 3),
-                        SvgPicture.asset(
-                          "assets/icons/chat-bubble.svg",
-                          width: 18,
-                          height: 18,
-                        ),
-                        const SizedBox(width: 5), // Space between icon and label
-                        const Text(
-                          "Comments",
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                        ),
-                        
-                      ],
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade400,
+                        borderRadius: BorderRadius.circular(8)
+                      ),
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 3),
+                          SvgPicture.asset(
+                            "assets/icons/chat-bubble.svg",
+                            width: 18,
+                            height: 18,
+                          ),
+                          const SizedBox(width: 5), // Space between icon and label
+                          const Text(
+                            "Comments",
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
                     ),
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => CommentPage(
-                            post: posts[index], // Pass the selected post
-                            comments: [], // Pass an empty list or retrieve comments dynamically
+                            postId: postId, 
                           ),
                         ),
                       );
@@ -313,7 +418,7 @@ class DashboardPageState extends State<DashboardPage> {
                           return TextButton(
                             onPressed: () {
                               setState(() {
-                                expandedPosts[index] = !isExpanded;
+                                expandedPosts[postId] = !isExpanded;
                               });
                             },
                             child: Text(
@@ -340,18 +445,16 @@ class DashboardPageState extends State<DashboardPage> {
                         child: IconButton(
                           icon: Icon(
                             isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-                            size: 24, // Adjust size if needed
+                            size: 24, 
+                            color: isPinned ? const Color(0xFFD83F31) : Colors.black54,
                           ),
                           color: Colors.white, // White base to blend with the gradient
                           onPressed: () {
-                            setState(() {
-                              pinnedPosts[index] = !isPinned; // Toggle pin state
-                            });
+                            _togglePinStatus(postId);
                           },
                         ),
                       ),
                     ),
-
                   ],
                 ),
               ],
@@ -386,6 +489,27 @@ class DashboardPageState extends State<DashboardPage> {
         ),
       ),
     );
+  }
+
+  String getRelativeTime(String dateString) {
+    DateTime postDate = DateTime.parse(dateString);
+    Duration difference = DateTime.now().difference(postDate);
+
+    if (difference.inSeconds < 60) {
+      return 'just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
+    } else if (difference.inDays < 30) {
+      return '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ago';
+    } else if (difference.inDays < 365) {
+      int months = (difference.inDays / 30).floor();
+      return '$months ${months == 1 ? 'month' : 'months'} ago';
+    } else {
+      int years = (difference.inDays / 365).floor();
+      return '$years ${years == 1 ? 'year' : 'years'} ago';
+    }
   }
 
   void _showLogoutDialog(BuildContext context) {
@@ -458,23 +582,13 @@ class DashboardPageState extends State<DashboardPage> {
     );
   }
 
-void _logout() {
-  // Perform logout logic (e.g., Firebase sign out)
-  
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(builder: (context) => SignInPage()), // Replace with your login page
-    (route) => false, // Removes all previous routes
-  );
-}
+  void _logout() async {
+    await _authController.signOut();
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const SignInPage()),
+      (route) => false,
+    );
+  }
 
-
-
-
-}
-
-void main() {
-  runApp(MaterialApp(
-    home: DashboardPage(),
-  ));
 }

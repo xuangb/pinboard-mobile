@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:pinboard/controllers/post_controller.dart';
+import 'package:intl/intl.dart';
 import './sign_in_page.dart';
 
 class PostPage extends StatefulWidget {
-  const PostPage({super.key});
+  final String userId;
+  const PostPage({super.key, required this.userId});
+
   @override
   PostPageState createState() => PostPageState();
 }
 
 class PostPageState extends State<PostPage> {
+  final PostController _postController = PostController();
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
   DateTime? _selectedDate;
-  String? _selectedPostType;
 
-  final List<String> _postTypes = ["Announcement", "Event", "Discussion"];
+  bool _isPosting = false;
 
   void _pickDate(BuildContext context) async {
     DateTime? pickedDate = await showDatePicker(
@@ -32,19 +36,41 @@ class PostPageState extends State<PostPage> {
     }
   }
 
-  void _submitPost() {
-    if (_titleController.text.isNotEmpty && _contentController.text.isNotEmpty) {
-      Navigator.pop(context, {
-        "title": _titleController.text,
-        "content": _contentController.text,
-        "postType": _selectedPostType ?? "General",
-        "date": _selectedDate != null
-            ? "${_selectedDate!.month}/${_selectedDate!.day}/${_selectedDate!.year}"
-            : "No Date",
-        "location": _locationController.text.isNotEmpty ? _locationController.text : "No Location",
-        "time": "Just Now",
-      });
+  Future<void> _submitPost() async{
+    if(_titleController.text.isEmpty || _contentController.text.isEmpty){
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Title and Content are required")),
+      );
+      return;
     }
+
+    setState(() => _isPosting = true);
+
+    String formattedDate = _selectedDate != null
+      ? DateFormat ('yyyy-MM-dd').format(_selectedDate!)
+      : DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    bool success = await _postController.createPost(
+      userId: widget.userId, 
+      title: _titleController.text, 
+      content: _contentController.text, 
+      date: formattedDate, 
+      location: _locationController.text.isNotEmpty ?_locationController.text: "No Location",
+    );
+
+    setState(() => _isPosting = false);
+
+    if(success){
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Post Created Successfully")),
+      );
+      Navigator.pop(context);
+    }else{
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to create post. Please try again.")),
+      );
+    }
+
   }
 
   @override
@@ -91,7 +117,6 @@ Widget build(BuildContext context) {
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   const SizedBox(height: 30),
-                  _buildDropDownField(),
                   const SizedBox(height: 10),
                   _buildTitleField(),
                   const SizedBox(height: 10),
@@ -144,186 +169,133 @@ Widget build(BuildContext context) {
 
   TextField _buildLocationField() {
     return TextField(
-              controller: _locationController,
-              decoration: InputDecoration(
-                hintText: "Type here...",
-                filled: true,
-                fillColor: Colors.white,
-                suffixIcon: Icon(Icons.location_on, color: Colors.red),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(28),
-                  borderSide: BorderSide(color: Colors.black, width: 6)
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: BorderSide(color: Colors.black, width: 2), // Normal state border
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: BorderSide(color: Colors.redAccent, width: 2), // When clicked (focused)
-                  ),
-              ),
-            );
+      controller: _locationController,
+      decoration: InputDecoration(
+        hintText: "Type here...",
+        filled: true,
+        fillColor: Colors.white,
+        suffixIcon: Icon(Icons.location_on, color: Colors.red),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(28),
+          borderSide: BorderSide(color: Colors.black, width: 6)
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(28),
+            borderSide: BorderSide(color: Colors.black, width: 2), // Normal state border
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(28),
+            borderSide: BorderSide(color: Colors.redAccent, width: 2), // When clicked (focused)
+          ),
+      ),
+    );
   }
 
   Text _buildLocationText() {
     return const Text(
-              "Location",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            );
+      "Location",
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+      ),
+    );
   }
 
   TextField _buildDateField(BuildContext context) {
     return TextField(
-              readOnly: true,
-              onTap: () => _pickDate(context),
-              decoration: InputDecoration(
-                hintText: _selectedDate != null
-                    ? "${_selectedDate!.month}/${_selectedDate!.day}/${_selectedDate!.year}"
-                    : "Select event date",
-                filled: true,
-                fillColor: Colors.white,
-                suffixIcon: Icon(Icons.calendar_today, color: Colors.red),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(28),
-                  borderSide: BorderSide(color: Colors.black, width: 6)
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: BorderSide(color: Colors.black, width: 2), // Normal state border
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: BorderSide(color: Colors.redAccent, width: 2), // When clicked (focused)
-                  ),
-              ),
-            );
+      readOnly: true,
+      onTap: () => _pickDate(context),
+      decoration: InputDecoration(
+        hintText: _selectedDate != null
+            ? "${_selectedDate!.month}/${_selectedDate!.day}/${_selectedDate!.year}"
+            : "Select event date",
+        filled: true,
+        fillColor: Colors.white,
+        suffixIcon: Icon(Icons.calendar_today, color: Colors.red),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(28),
+          borderSide: BorderSide(color: Colors.black, width: 6)
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(28),
+            borderSide: BorderSide(color: Colors.black, width: 2), // Normal state border
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(28),
+            borderSide: BorderSide(color: Colors.redAccent, width: 2), // When clicked (focused)
+          ),
+      ),
+    );
   }
 
   Text _buildEventText() {
     return const Text(
-              "Event Date",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            );
+      "Event Date",
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+      ),
+    );
   }
 
   Text _buildOptionalText() {
     return const Text(
-              "Additional Information (optional)",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-            );
+      "Additional Information (optional)",
+      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+    );
   }
 
   TextField _buildContentField() {
     return TextField(
-              controller: _contentController,
-              style: TextStyle(color: Colors.white),
-              maxLines: 5,
-              decoration: InputDecoration(
-                hintText: "Content here...",
-                hintStyle: TextStyle(color: Colors.white54),
-                filled: true,
-                fillColor: Colors.black,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.white, width: 2)
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white, width: 2), // Normal state border
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.redAccent, width: 2), // When clicked (focused)
-                  ),
-              ),
-            );
+      controller: _contentController,
+      style: TextStyle(color: Colors.white),
+      maxLines: 5,
+      decoration: InputDecoration(
+        hintText: "Content here...",
+        hintStyle: TextStyle(color: Colors.white54),
+        filled: true,
+        fillColor: Colors.black,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white, width: 2)
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.white, width: 2), // Normal state border
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.redAccent, width: 2), // When clicked (focused)
+          ),
+      ),
+    );
   }
 
   TextField _buildTitleField() {
     return TextField(
-              controller: _titleController,
-              style: TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: "Add a title...",
-                hintStyle: TextStyle(color: Colors.white54),
-                filled: true,
-                fillColor: Colors.black,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(28),
-                  borderSide: BorderSide(color: Colors.white, width: 6)
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: BorderSide(color: Colors.white, width: 2), // Normal state border
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: BorderSide(color: Colors.redAccent, width: 2), // When clicked (focused)
-                  ),
-              ),
-            );
-  }
-
-  DropdownButtonFormField<String> _buildDropDownField() {
-    return DropdownButtonFormField<String>(
-              value: null,
-              decoration: InputDecoration(
-                hintText: "Post type",
-                hintStyle: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16
-                ),
-                filled: true,
-                fillColor: Colors.black,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(28),
-                  borderSide: BorderSide(color: Colors.white, width: 6)
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: BorderSide(color: Colors.white, width: 2), // Normal state border
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: BorderSide(color: Colors.redAccent, width: 2), // When clicked (focused)
-                  ),
-              ),
-              dropdownColor: Colors.black,
-              items: [
-                // Add a "dummy" first item with a null value
-                DropdownMenuItem<String>(
-                  value: null,
-                  child: Text(
-                    "Post type", // This mimics the hint text
-                    style: TextStyle(color: Colors.grey), // Make it look like a hint
-                  ),
-                ),
-                // Real options
-                ..._postTypes.map((type) {
-                  return DropdownMenuItem<String>(
-                    value: type,
-                    child: Text(
-                      type,
-                      style: TextStyle(color: Colors.white), // Dropdown item text color
-                    ),
-                  );
-                }).toList(),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _selectedPostType = value;
-                });
-              },
-            );
+      controller: _titleController,
+      style: TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        hintText: "Add a title...",
+        hintStyle: TextStyle(color: Colors.white54),
+        filled: true,
+        fillColor: Colors.black,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(28),
+          borderSide: BorderSide(color: Colors.white, width: 6)
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(28),
+            borderSide: BorderSide(color: Colors.white, width: 2), // Normal state border
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(28),
+            borderSide: BorderSide(color: Colors.redAccent, width: 2), // When clicked (focused)
+          ),
+      ),
+    );
   }
 
   Widget _buildBackButton(BuildContext context) {
@@ -457,13 +429,12 @@ Widget build(BuildContext context) {
     );
   }
 
-void _logout() {
-  
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(builder: (context) => SignInPage()), 
-    (route) => false, 
-  );
-}
+  void _logout() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => SignInPage()), 
+      (route) => false, 
+    );
+  }
 
 }

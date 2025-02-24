@@ -1,35 +1,87 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:pinboard/controllers/auth_controller.dart';
 import './update_profile.dart';
 import './sign_in_page.dart';
 
-class CommentPage extends StatefulWidget {
-  final Map<String, String> post;
-  final List<Map<String, String>> comments;
+import '../controllers/comment_controller.dart';
+import '../controllers/user_controller.dart';
 
-  const CommentPage({super.key, required this.post, required this.comments});
+class CommentPage extends StatefulWidget {
+  final int postId;
+
+  const CommentPage({super.key, required this.postId});
 
   @override
   CommentPageState createState() => CommentPageState();
 }
 
 class CommentPageState extends State<CommentPage> {
-  final TextEditingController _commentController = TextEditingController();
-  late List<Map<String, String>> comments;
+  final CommentController _commentController = CommentController();
+  final AuthController _authController = AuthController();
+  final TextEditingController _textEditingController = TextEditingController();
+  final FlutterSecureStorage secure = const FlutterSecureStorage(); // Add this line
+
+  List<Map<String, dynamic>> comments = [];
+  Map<String, dynamic>? postDetails;
+  String? loggedInUserId;
 
   @override
   void initState() {
     super.initState();
-    comments = List.from(widget.comments); // Copy comments to avoid mutating original list
+    _fetchComments();
+    _fetchPostDetails();
+    _getLoggedInUserId();
   }
 
-  void _addComment() {
-    String newComment = _commentController.text.trim();
+  Future<void> _getLoggedInUserId() async {
+    String? userId = await secure.read(key: 'userId');
+    setState(() {
+      loggedInUserId = userId;
+    });
+  }
+
+  void _addComment() async {
+    String newComment = _textEditingController.text.trim();
     if (newComment.isNotEmpty) {
+      try {
+        // First send the comment to server
+        await _commentController.addComment(widget.postId.toString(), newComment);
+        
+        // Clear the input field
+        _textEditingController.clear();
+        
+        // Refresh comments from server
+        _fetchComments();
+        
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to add comment'))
+        );
+      }
+    }
+  }
+
+  void _fetchPostDetails() async {
+    try {
+      final fetchedPost = await _commentController.fetchPostDetails(widget.postId.toString());
       setState(() {
-        comments.insert(0, {"content": newComment}); // Add at the top
+        postDetails = fetchedPost;
       });
-      _commentController.clear();
+    } catch (e) {
+      print("Error fetching post details: $e");
+    }
+  }
+
+  void _fetchComments() async {
+    try {
+      final fetchedComments = await _commentController.fetchComments(widget.postId.toString());
+      setState(() {
+        comments = List<Map<String, dynamic>>.from(fetchedComments);
+      });
+    } catch (e) {
+      print("Error fetching comments: $e");
     }
   }
 
@@ -79,7 +131,6 @@ class CommentPageState extends State<CommentPage> {
     );
   }
 
-
   Widget _buildCommentSection() {
     return comments.isEmpty
       ? const Center(
@@ -90,14 +141,19 @@ class CommentPageState extends State<CommentPage> {
         )
       : Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: MediaQuery.removePadding( // Wrap ListView.builder
+          child: MediaQuery.removePadding( 
             context: context,
-            removeTop: true, // Removes the extra top padding
+            removeTop: true, 
             child: ListView.builder(
-              shrinkWrap: true, // Prevents taking unnecessary space
-              physics: const ClampingScrollPhysics(), // Prevents overscroll effect
+              shrinkWrap: true, 
+              physics: const ClampingScrollPhysics(), 
               itemCount: comments.length,
               itemBuilder: (context, index) {
+                final comment = comments[index];
+                final String commentId = comment["commentId"].toString();
+                final String postId = widget.postId.toString();
+                final String userId = comment["userId"].toString(); // Comment owner's userId
+
                 return Card(
                   color: Colors.black54.withOpacity(0.5),
                   shape: RoundedRectangleBorder(
@@ -137,8 +193,8 @@ class CommentPageState extends State<CommentPage> {
                                   children: [
                                     Column(
                                       children: [
-                                        const Text(
-                                          "John Doe Jr.",
+                                        Text(
+                                          comments[index]["fullName"]??"Unknown User",
                                           style: TextStyle(
                                             color: Colors.white,
                                             fontSize: 14,
@@ -149,8 +205,8 @@ class CommentPageState extends State<CommentPage> {
                                     ),
                                     Column(
                                       children: [
-                                        const Text(
-                                          "TimeStamp",
+                                        Text(
+                                          getRelativeTime(comments[index]["dateCreated"] ?? DateTime.now().toString()),
                                           style: TextStyle(
                                             fontWeight: FontWeight.w300,
                                             color: Colors.white,
@@ -163,13 +219,17 @@ class CommentPageState extends State<CommentPage> {
                                 ),
                                 const SizedBox(height: 5),
                                 Text(
-                                  comments[index]["content"] ?? "",
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w300
-                                  ),
+                                  comment["content"] ?? "",
+                                  style: const TextStyle(color: Colors.white, fontSize: 13),
                                 ),
+                                if (loggedInUserId == userId) // Show edit button if user owns the comment
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () => _editComment(commentId, postId, comment["content"] ?? ""),
+                                      child: const Icon(Icons.edit),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
@@ -184,70 +244,69 @@ class CommentPageState extends State<CommentPage> {
         );
   }
 
-  Container _buildCommentBox() {
+  Widget _buildCommentBox() {
     return Container(
-            color: Colors.grey.shade900.withOpacity(0.5),
-            child: Padding(
-              padding: const EdgeInsets.all(13.0),
-              child: Row(
+      color: Colors.grey.shade900.withOpacity(0.5),
+      child: Padding(
+        padding: const EdgeInsets.all(13.0),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _textEditingController,
+                minLines: 1,
+                maxLines: 3,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w300
+                ),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.black,
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 15,
+                    horizontal: 20
+                  ),
+                  hintText: "Write something...",
+                  hintStyle: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w300
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+            FloatingActionButton(
+              onPressed: _addComment,
+              backgroundColor: Colors.transparent, 
+              elevation: 0,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _commentController,
-                      minLines: 1,
-                      maxLines: 3,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w300
-                      ),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: Colors.black,
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 15,
-                          horizontal: 20
-                        ),
-                        hintText: "Write something...",
-                        hintStyle: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w300
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
+                  Transform.rotate(
+                    angle: -0.66, 
+                    child: const Icon(Icons.send, color: Colors.white),
                   ),
-                  FloatingActionButton(
-                    onPressed: _addComment,
-                    backgroundColor: Colors.transparent, 
-                    elevation: 0,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Transform.rotate(
-                          angle: -0.66, 
-                          child: const Icon(Icons.send, color: Colors.white),
-                        ),
-                        const SizedBox(height: 2), 
-                        const Text(
-                          "Send",
-                          style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
+                  const SizedBox(height: 2), 
+                  const Text(
+                    "Send",
+                    style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold),
                   ),
-
                 ],
               ),
             ),
-          );
+          ],
+        ),
+      ),
+    );
   }
 
-  Padding _buildAllCommentText() {
+  Widget _buildAllCommentText() {
     return Padding(
       padding: const EdgeInsets.only(left: 30),
       child: const Text("All Comments", 
@@ -259,42 +318,54 @@ class CommentPageState extends State<CommentPage> {
     );
   }
 
-  Padding _buildPostSection() {
+  Widget _buildPostSection() {
+    if(postDetails == null){
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
     return Padding(
-            padding: const EdgeInsets.only(left: 15, right: 15),
-            child: Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              color: Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
-                        Text("John Doe Jr.", 
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold
-                            )
-                          ),
-                        Text("Just Now", 
-                          style: TextStyle(
-                            color: Colors.grey, 
-                            fontSize: 12
-                          )
-                        ),
-                      ],
+      padding: const EdgeInsets.only(left: 15, right: 15),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        color: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children:[
+                  Text(
+                    postDetails!["fullName"] ?? "Unknown",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold
+                      )
                     ),
-                    const SizedBox(height: 5),
-                    Text(widget.post["title"] ?? "", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                    const SizedBox(height: 5),
-                    Text(widget.post["content"] ?? ""),
-                  ],
-                ),
+                  Text(
+                    getRelativeTime(postDetails!["dateCreated"] ?? DateTime.now().toString()),
+                    style: TextStyle(
+                      color: Colors.grey, 
+                      fontSize: 12
+                    )
+                  ),
+                ],
               ),
-            ),
-          );
+              const SizedBox(height: 5),
+              Text(
+                postDetails!["title"] ?? "", 
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 18)
+                  ),
+              const SizedBox(height: 5),
+              Text(postDetails!["content"] ?? ""),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildBackButton(BuildContext context) {
@@ -352,7 +423,7 @@ class CommentPageState extends State<CommentPage> {
     );
   }
 
-  IconButton _buildUpdateProfile(BuildContext context) {
+  Widget _buildUpdateProfile(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.settings, color: Colors.white),
       onPressed: () {
@@ -382,6 +453,27 @@ class CommentPageState extends State<CommentPage> {
       ],
     );
   }
+
+String getRelativeTime(String dateString) {
+  DateTime postDate = DateTime.parse(dateString);
+  Duration difference = DateTime.now().difference(postDate);
+
+  if (difference.inSeconds < 60) {
+    return 'just now';
+  } else if (difference.inMinutes < 60) {
+    return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ago';
+  } else if (difference.inHours < 24) {
+    return '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
+  } else if (difference.inDays < 30) {
+    return '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ago';
+  } else if (difference.inDays < 365) {
+    int months = (difference.inDays / 30).floor();
+    return '$months ${months == 1 ? 'month' : 'months'} ago';
+  } else {
+    int years = (difference.inDays / 365).floor();
+    return '$years ${years == 1 ? 'year' : 'years'} ago';
+  }
+}
 
   void _showLogoutDialog(BuildContext context) {
     showDialog(
@@ -453,14 +545,58 @@ class CommentPageState extends State<CommentPage> {
     );
   }
 
-void _logout() {
-  // Perform logout logic (e.g., Firebase sign out)
-  
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(builder: (context) => SignInPage()), // Replace with your login page
-    (route) => false, // Removes all previous routes
+  void _logout() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => SignInPage()), // Replace with your login page
+      (route) => false, // Removes all previous routes
+    );
+  }
+
+void _editComment(String commentId, String postId, String oldContent) {
+  TextEditingController editController = TextEditingController(text: oldContent);
+
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: const Text("Edit Comment"),
+        content: TextField(
+          controller: editController,
+          minLines: 1,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: "Edit your comment...",
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context), 
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              String newContent = editController.text.trim();
+              if (newContent.isNotEmpty && newContent != oldContent) {
+                bool success = await _commentController.editComment(commentId, postId, newContent);
+                if (success) {
+                  Navigator.pop(context); // Close dialog
+                  _fetchComments(); // Refresh comments
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Failed to update comment")),
+                  );
+                }
+              }
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      );
+    },
   );
 }
+
+
 
 }

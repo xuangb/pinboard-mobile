@@ -4,34 +4,44 @@ import './post_page.dart';
 import './update_profile.dart';
 import './comment_page.dart';
 
+import '../controllers/auth_controller.dart';
+import '../controllers/pinpost_controller.dart';
+
 class PinnedPage extends StatefulWidget {
-  final List<Map<String, String>> pinnedPosts;
-  
-  const PinnedPage({super.key, required this.pinnedPosts});
+  const PinnedPage({super.key});
 
   @override
   State<PinnedPage> createState() => _PinnedPageState();
 }
 
 class _PinnedPageState extends State<PinnedPage> {
+  final AuthController _authController = AuthController();
+  final PinPostController _pinPostController = PinPostController();
+
   List<Map<String, String>> posts = [];
   Map<int, bool> expandedPosts = {};
   Map<int, bool> pinnedPosts = {};
 
-  void _addPost(Map<String, String> newPost) {
-    setState(() {
-      posts.insert(0, newPost); // Insert new post at the top
-    });
-  }
-  void _navigateToPostPage(BuildContext context) async {
-    final newPost = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => PostPage()),
-    );
-    if (newPost != null) {
-      _addPost(newPost); // Add new post if data is returned
-    }
-  }
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   _loadPinnedPosts();
+  // }
+
+  // void _loadPinnedPosts() async {
+  //   String userId = await _authController.getUserId() ?? "0"; // Get the current user ID
+  //   List<Map<String, dynamic>> fetchedPosts = await _pinPostController.getPinnedPosts(userId);
+
+  //   setState(() {
+  //     posts = fetchedPosts.map((post) => {
+  //       "title": post["title"] ?? "Untitled",
+  //       "content": post["content"] ?? "No content available",
+  //       "commentCount": post["commentCount"].toString(),
+  //     }).toList();
+  //   });
+  // }
+
+
 
 
   @override
@@ -102,7 +112,13 @@ class _PinnedPageState extends State<PinnedPage> {
             // Add Button (Prominent Floating Button)
           IconButton(
             icon: SvgPicture.asset("assets/icons/circle-plus.svg", width: 40, height: 40),
-            onPressed: () => _navigateToPostPage(context),
+            onPressed: () async {
+              String userId = await _authController.getUserId() ?? "0"; // Provide a default value if null
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => PostPage(userId: userId)),
+              );
+            },
           ),
 
             const SizedBox(width: 15), 
@@ -118,7 +134,7 @@ class _PinnedPageState extends State<PinnedPage> {
                 color: Colors.white.withOpacity(0.7),
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => PinnedPage(pinnedPosts: [],),
+                    builder: (_) => PinnedPage(),
                   ),
                 ),
               ),
@@ -360,11 +376,5 @@ class _PinnedPageState extends State<PinnedPage> {
 
 }
 
-
-void main() {
-  runApp(MaterialApp(
-    home: PinnedPage(pinnedPosts: [],),
-  ));
-}
 
 

@@ -13,7 +13,7 @@ class SignInPage extends StatefulWidget {
 }
 
 class SignInPageState extends State<SignInPage> {
-  final _authController = AuthController();
+  final authController = AuthController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -28,7 +28,7 @@ class SignInPageState extends State<SignInPage> {
   }
 
   void _checkExistingSession() async {
-    if (await _authController.isSignedIn()) {
+    if (await authController.isSignedIn()) {
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -39,7 +39,7 @@ class SignInPageState extends State<SignInPage> {
   }
 
   void _checkConnection() async {
-    bool isConnected = await _authController.verifyConnection();
+    bool isConnected = await authController.verifyConnection();
     print('API Connection status: ${isConnected ? 'Success' : 'Failed'}');
   }
 
@@ -58,7 +58,7 @@ class SignInPageState extends State<SignInPage> {
     final username = _usernameController.text;
     final password = _passwordController.text;
 
-    bool success = await _authController.signIn(username, password);
+    bool success = await authController.signIn(username, password);
 
     setState(() {
       _isLoading = false;
@@ -80,8 +80,6 @@ class SignInPageState extends State<SignInPage> {
       }
     }
   }
-
-
 
 
   @override
@@ -406,21 +404,20 @@ class SignInPageState extends State<SignInPage> {
       );
     }
 
-void _showErrorDialog(BuildContext context, String message) {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text("Login Failed"),
-      content: Text(message),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text("OK"),
-        ),
-      ],
-    ),
-  );
-}
-
+// void _showErrorDialog(BuildContext context, String message) {
+//   showDialog(
+//     context: context,
+//     builder: (context) => AlertDialog(
+//       title: const Text("Login Failed"),
+//       content: Text(message),
+//       actions: [
+//         TextButton(
+//           onPressed: () => Navigator.pop(context),
+//           child: const Text("OK"),
+//         ),
+//       ],
+//     ),
+//   );
+// }
 
 }

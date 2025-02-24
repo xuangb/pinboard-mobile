@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:pinboard/controllers/auth_controller.dart';
 import './sign_in_page.dart';
 
 class UpdateProfilePage extends StatefulWidget {
@@ -11,8 +12,69 @@ class UpdateProfilePage extends StatefulWidget {
 
 class UpdateProfilePageState extends State<UpdateProfilePage> {
   final _formKey = GlobalKey<FormState>();
+  final AuthController authController = AuthController();
+
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController(); 
+
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  String? userId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserDetails();
+  }
+
+  Future<void> _loadUserDetails() async {
+    userId = await authController.getUserId();
+    print("Fetching user for ID: $userId");
+    if (userId != null) {
+      Map<String, dynamic>? user = await authController.getUserById(userId!);
+      print("Fetched user: $user");
+      if (user != null) {
+        setState(() {
+          _usernameController.text = user['userName'] ?? '';
+          _fullNameController.text = user['fullName'] ?? '';
+          _emailController.text = user['email'] ?? '';
+        });
+      }
+    }
+  }
+
+  Future<void> _updateUser() async {
+    if (_formKey.currentState!.validate()) {
+      if (_passwordController.text != _confirmPasswordController.text) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Passwords do not match"), backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      bool success = await authController.updateUser(
+        userId!,
+        _usernameController.text,
+        _fullNameController.text,
+        _emailController.text,
+        _passwordController.text.isNotEmpty ? _passwordController.text : null,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? "Profile updated!" : "Update failed"),
+          backgroundColor: success ? Colors.green : Colors.red,
+        ),
+      );
+
+      if (success) Navigator.pop(context);
+    }
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -47,19 +109,10 @@ class UpdateProfilePageState extends State<UpdateProfilePage> {
                   ),
                 ],
               ),
-              
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 15.0),
-                    child: _buildTitle(),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 10.0),
-                    child: _buildDotGrid(Colors.white),
-                  ),
-                ],
+              SizedBox(height: 27),
+              Padding(
+                padding: const EdgeInsets.only(left: 15.0),
+                child: _buildTitle(),
               ),
             ],
           ),
@@ -82,11 +135,11 @@ class UpdateProfilePageState extends State<UpdateProfilePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 10),
-                      _buildTextField("Username"),
-                      _buildTextField("Full Name"),
-                      _buildTextField("Email"),
-                      _buildPasswordField("Password", true),
-                      _buildPasswordField("Confirm Password", false),
+                      _buildTextField("Username", _usernameController),
+                      _buildTextField("Full Name", _fullNameController),
+                      _buildTextField("Email", _emailController),
+                      _buildPasswordField("Password", _passwordController, true),
+                      _buildPasswordField("Confirm Password", _confirmPasswordController, false),
                       const SizedBox(height: 50),
                       _buildUpdateButton(),
                     ],
@@ -100,31 +153,6 @@ class UpdateProfilePageState extends State<UpdateProfilePage> {
     );
   }
 
-  Widget _buildDotGrid(Color color) {
-    return Column(
-      children: List.generate(
-        3,
-        (rowIndex) => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(
-            3,
-            (colIndex) => Padding(
-              padding: const EdgeInsets.only(right: 5.0),
-              child: Text(
-                '•',
-                style: TextStyle(
-                  color: color, // Use the passed color
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 10.0,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildBackButton(BuildContext context) {
     return Padding(
@@ -179,7 +207,7 @@ class UpdateProfilePageState extends State<UpdateProfilePage> {
         );
       }
 
-  Widget _buildTextField(String label) {
+  Widget _buildTextField(String label, TextEditingController controller) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -194,16 +222,18 @@ class UpdateProfilePageState extends State<UpdateProfilePage> {
         ),
         const SizedBox(height: 5),
         TextFormField(
+          controller: controller,
           decoration: const InputDecoration(
             border: UnderlineInputBorder(),
           ),
+          validator: (value) => value == null || value.isEmpty ? "Field required" : null,
         ),
         const SizedBox(height: 5),
       ],
     );
   }
 
-  Widget _buildPasswordField(String label, bool isPassword) {
+  Widget _buildPasswordField(String label, TextEditingController controller, bool isPassword) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -218,6 +248,7 @@ class UpdateProfilePageState extends State<UpdateProfilePage> {
         ),
         const SizedBox(height: 5),
         TextFormField(
+          controller: controller,
           obscureText: isPassword ? _obscurePassword : _obscureConfirmPassword,
           decoration: InputDecoration(
             suffixIcon: IconButton(
@@ -265,23 +296,7 @@ class UpdateProfilePageState extends State<UpdateProfilePage> {
             borderRadius: BorderRadius.circular(10),
           ),
         ),
-        onPressed: () {
-          if (_formKey.currentState!.validate()) {
-            // Simulate account update logic
-            bool updateSuccessful = true; // Change this based on actual update status
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  updateSuccessful ? "Account updated successfully!" : "Failed to update account.",
-                ),
-                backgroundColor: updateSuccessful ? Colors.green : Colors.red,
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
-        },
-
+        onPressed: _updateUser,
         child: const Text(
           'Update',
           style: TextStyle(

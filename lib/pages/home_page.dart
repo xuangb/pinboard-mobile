@@ -21,11 +21,11 @@ class HomePage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 150),
+              const Image(image: AssetImage('assets/images/pin.png')),
               _buildTitle(),
               const SizedBox(height: 30),
               _buildDescriptionWithDots(),
-              const SizedBox(height: 100),
+              const SizedBox(height: 80),
               _buildAuthButtons(context),
               const Spacer(),
               Center(
@@ -82,7 +82,6 @@ class HomePage extends StatelessWidget {
       children: [
         Row(
           children: [
-            // First Column with bullets
             Column(
               children: List.generate(5, (rowIndex) =>
                 Row(
@@ -103,7 +102,6 @@ class HomePage extends StatelessWidget {
                 ),
               ),
             ),
-            // Second Column with wrapped text
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
