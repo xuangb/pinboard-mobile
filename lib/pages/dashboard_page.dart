@@ -238,7 +238,7 @@ class DashboardPageState extends State<DashboardPage> {
             const Icon(Icons.account_circle, color: Colors.white, size: 18),
             const SizedBox(width: 5),
             Text(
-              "$_userId $_userName",
+              " $_userName",
               style: TextStyle(color: Colors.white, fontSize: 14, letterSpacing: 2),
             ),
             const SizedBox(width: 5)
