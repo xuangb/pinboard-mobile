@@ -5,6 +5,8 @@ import './update_profile.dart';
 import './comment_page.dart';
 
 import '../controllers/auth_controller.dart';
+import '../controllers/user_controller.dart';
+import '../controllers/post_controller.dart';
 import '../controllers/pinpost_controller.dart';
 
 class PinnedPage extends StatefulWidget {
@@ -17,30 +19,44 @@ class PinnedPage extends StatefulWidget {
 class _PinnedPageState extends State<PinnedPage> {
   final AuthController _authController = AuthController();
   final PinPostController _pinPostController = PinPostController();
+  final PostController _postController = PostController();
 
-  List<Map<String, String>> posts = [];
+  List<Map<String, dynamic>> posts = [];
   Map<int, bool> expandedPosts = {};
   Map<int, bool> pinnedPosts = {};
+  String userId = "0"; // Default value
 
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   _loadPinnedPosts();
-  // }
+  @override
+  void initState() {
+    super.initState();
+    _initializeUser();
+  }
 
-  // void _loadPinnedPosts() async {
-  //   String userId = await _authController.getUserId() ?? "0"; // Get the current user ID
-  //   List<Map<String, dynamic>> fetchedPosts = await _pinPostController.getPinnedPosts(userId);
+  Future<void> _initializeUser() async {
+    String fetchedUserId = await _authController.getUserId() ?? "0";
+    setState(() {
+      userId = fetchedUserId;
+    });
+    _fetchPostsAndPinned(); // Fetch posts after userId is set
+  }
 
-  //   setState(() {
-  //     posts = fetchedPosts.map((post) => {
-  //       "title": post["title"] ?? "Untitled",
-  //       "content": post["content"] ?? "No content available",
-  //       "commentCount": post["commentCount"].toString(),
-  //     }).toList();
-  //   });
-  // }
+  void _fetchPostsAndPinned() async {
+    String userId = await _authController.getUserId() ?? "0";
+    List<dynamic> fetchedPosts = await _postController.fetchPosts();
+    List<dynamic> fetchedPinnedPosts = await _pinPostController.getPinnedPosts(userId);
 
+    Set<int> pinnedPostIds = fetchedPinnedPosts.map((post) => post["id"] as int).toSet();
+
+    setState(() {
+      posts = List<Map<String, dynamic>>.from(fetchedPosts)
+          .where((post) => !pinnedPostIds.contains(post["id"])) // Ensure correct key
+          .toList();
+
+      pinnedPosts = {for (var post in fetchedPinnedPosts) post["id"] as int: true};
+    });
+
+    print("Filtered posts: $posts");
+  }
 
 
 
@@ -71,7 +87,15 @@ class _PinnedPageState extends State<PinnedPage> {
             const SizedBox(height: 15),
             _buildTitle(),
             const SizedBox(height: 10),
-            _buildPostBox(),
+            Expanded(
+              child: ListView.builder(
+                itemCount: posts.length,
+                itemBuilder: (context, index) {
+                  return _buildPostBox(index);
+                },
+              ),
+            )
+
           ],
         ),
       ),
@@ -242,135 +266,197 @@ class _PinnedPageState extends State<PinnedPage> {
   }
 
 
-  Expanded _buildPostBox() {
-    return Expanded(
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-        itemCount: posts.length,
-        itemBuilder: (context, index){
-          String fullContent = posts[index]["content"]??"";
-          bool isExpanded = expandedPosts[index]??false;
-          bool isPinned = pinnedPosts[index]?? false;
+  // Expanded _buildPostBox(int index) {
+  //   bool isPinned = pinnedPosts[posts[index]["id"]] ?? false;
+  //   return Expanded(
+  //     child: ListView.builder(
+  //       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+  //       itemCount: posts.length,
+  //       itemBuilder: (context, index){
+  //         String fullContent = posts[index]["content"]??"";
+  //         bool isExpanded = expandedPosts[index]??false;
+  //         bool isPinned = pinnedPosts[index]?? false;
+  //         return Container(
+  //           padding: const EdgeInsets.all(12),
+  //           margin: const EdgeInsets.only(bottom: 10),
+  //           decoration: BoxDecoration(
+  //             color: Colors.white.withOpacity(0.9),
+  //             borderRadius: BorderRadius.circular(10),
+  //             border: Border.all(color: Colors.grey.shade300),
+  //           ),          
+  //           child: Column(
+  //             crossAxisAlignment: CrossAxisAlignment.start,
+  //             children: [
+  //               Text(
+  //                 posts[index]["title"] ?? "No Title",
+  //                 style: const TextStyle(
+  //                   fontSize: 18,
+  //                   fontWeight: FontWeight.bold)
+  //               ),
+  //               const SizedBox(height: 5),
+  //               Text(
+  //                 fullContent,
+  //                 maxLines: isExpanded ? null: 3,
+  //                 overflow: isExpanded ? TextOverflow.visible: TextOverflow.ellipsis,
+  //                 style: const TextStyle(fontSize: 14),
+  //               ),
+  //               const SizedBox(height: 5),
+  //               Row(
+  //                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //                 children: [
+  //                 Row(
+  //                   children: [
+  //                     const SizedBox(width: 3),
+  //                     SvgPicture.asset(
+  //                       "assets/icons/chat-bubble.svg",
+  //                       width: 18,
+  //                       height: 18,
+  //                     ),
+  //                     const SizedBox(width: 5), // Space between icon and label
+  //                     const Text(
+  //                       "Comments",
+  //                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+  //                     ),
+  //                   ],
+  //                 ),
+  //                   LayoutBuilder(
+  //                     builder: (context, constraints){
+  //                     final textSpan = TextSpan(
+  //                       text: fullContent,
+  //                       style: const TextStyle(fontSize: 14),
+  //                     );                     
+  //                     final textPainter = TextPainter (
+  //                       text: textSpan,
+  //                       maxLines: 3,
+  //                       textDirection: TextDirection.ltr,
+  //                     )
+  //                     textPainter.layout(maxWidth: constraints.maxWidth);              
+  //                     if (textPainter.didExceedMaxLines) {
+  //                         return TextButton(
+  //                           onPressed: () {
+  //                             setState(() {
+  //                               expandedPosts[index] = !isExpanded;
+  //                             });
+  //                           },
+  //                           child: Text(
+  //                             isExpanded ? "View Less" : "View More",
+  //                             style: const TextStyle(color: Colors.blue),
+  //                           ),
+  //                         );
+  //                       }
+  //                       return const SizedBox();
+  //                   }
+  //                   ),
+  //                   Transform.rotate(
+  //                     angle: 0.65, // Tilt the pin diagonally (adjust as needed)
+  //                     child: ShaderMask(
+  //                       shaderCallback: (Rect bounds) {
+  //                         return LinearGradient(
+  //                           colors: isPinned
+  //                               ?  [Color(0xFF6D0900), Color(0xFFD83F31)] // Pinned gradient
+  //                               : [Colors.black, Colors.black], // Default gradient
+  //                           begin: Alignment.centerRight,
+  //                           end: Alignment.centerLeft,
+  //                         ).createShader(bounds);
+  //                       },
+  //                       child: IconButton(
+  //                         icon: Icon(
+  //                           isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+  //                           size: 24, // Adjust size if needed
+  //                         ),
+  //                         color: Colors.white, // White base to blend with the gradient
+  //                         onPressed: () async {
+  //                           int postId = posts[index]["id"];
+  //                           bool newPinnedState = !isPinned;                         
+  //                           setState(() {
+  //                             pinnedPosts[postId] = newPinnedState;
+  //                           });
+  //                           if (newPinnedState) {
+  //                             await _pinPostController.pinPost(postId);
+  //                           } else {
+  //                             await _pinPostController.unpinPost(postId);
+  //                           }
+  //                         },
+  //                       ),
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ],
+  //           ),
+  //         );
+  //       },
+  //     ),
+  //   );
+  // }
 
-          return Container(
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade300),
+Widget _buildPostBox(int index) {
+  bool isPinned = pinnedPosts[posts[index]["id"]] ?? false;
+  return Container(
+    padding: const EdgeInsets.all(12),
+    margin: const EdgeInsets.only(bottom: 10),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.9),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: Colors.grey.shade300),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          posts[index]["title"] ?? "No Title",
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          posts[index]["content"] ?? "",
+          maxLines: expandedPosts[index] ?? false ? null : 3,
+          overflow: expandedPosts[index] ?? false ? TextOverflow.visible : TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 14),
+        ),
+        const SizedBox(height: 5),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  expandedPosts[index] = !(expandedPosts[index] ?? false);
+                });
+              },
+              child: Text(
+                expandedPosts[index] ?? false ? "View Less" : "View More",
+                style: const TextStyle(color: Colors.blue),
+              ),
             ),
-            
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  posts[index]["title"]??"",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold)
-                ),
-                const SizedBox(height: 5),
+            IconButton(
+              icon: Icon(
+                isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                size: 24,
+              ),
+              color: isPinned ? Colors.red : Colors.black,
+              onPressed: () async {
+                int postId = posts[index]["id"];
+                bool newPinnedState = !isPinned;
+                
+                setState(() {
+                  pinnedPosts[postId] = newPinnedState;
+                });
 
-                Text(
-                  fullContent,
-                  maxLines: isExpanded ? null: 3,
-                  overflow: isExpanded ? TextOverflow.visible: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14),
-                ),
-
-                const SizedBox(height: 5),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                  Row(
-                    children: [
-                      Text(
-                        posts[index]["commentCount"]??"24",
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                      ),
-                      const SizedBox(width: 3),
-                      SvgPicture.asset(
-                        "assets/icons/chat-bubble.svg",
-                        width: 18,
-                        height: 18,
-                      ),
-                      const SizedBox(width: 5), // Space between icon and label
-                      const Text(
-                        "Comments",
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                      ),
-                    ],
-                  ),
-
-                    LayoutBuilder(
-                      builder: (context, constraints){
-                      final textSpan = TextSpan(
-                        text: fullContent,
-                        style: const TextStyle(fontSize: 14),
-                      );
-                      
-                      final textPainter = TextPainter (
-                        text: textSpan,
-                        maxLines: 3,
-                        textDirection: TextDirection.ltr,
-                      );
-
-                      textPainter.layout(maxWidth: constraints.maxWidth);
-                      
-                      if (textPainter.didExceedMaxLines) {
-                          return TextButton(
-                            onPressed: () {
-                              setState(() {
-                                expandedPosts[index] = !isExpanded;
-                              });
-                            },
-                            child: Text(
-                              isExpanded ? "View Less" : "View More",
-                              style: const TextStyle(color: Colors.blue),
-                            ),
-                          );
-                        }
-                        return const SizedBox();
-                    }
-                    ),
-                    Transform.rotate(
-                      angle: 0.65, // Tilt the pin diagonally (adjust as needed)
-                      child: ShaderMask(
-                        shaderCallback: (Rect bounds) {
-                          return LinearGradient(
-                            colors: isPinned
-                                ?  [Color(0xFF6D0900), Color(0xFFD83F31)] // Pinned gradient
-                                : [Colors.black, Colors.black], // Default gradient
-                            begin: Alignment.centerRight,
-                            end: Alignment.centerLeft,
-                          ).createShader(bounds);
-                        },
-                        child: IconButton(
-                          icon: Icon(
-                            isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-                            size: 24, // Adjust size if needed
-                          ),
-                          color: Colors.white, // White base to blend with the gradient
-                          onPressed: () {
-                            setState(() {
-                              pinnedPosts[index] = !isPinned; // Toggle pin state
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-
-                  ],
-                ),
-              ],
+                if (newPinnedState) {
+                  await _pinPostController.pinPost(postId.toString(), userId);
+                } else {
+                  await _pinPostController.unpinPost(postId.toString(), userId);
+                }
+              },
             ),
-          );
-        },
-      ),
-    );
-  }
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
 
 
 

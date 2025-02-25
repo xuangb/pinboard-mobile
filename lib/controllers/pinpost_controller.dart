@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class PinPostController {
-  final String _baseUrl = "http://10.0.2.2:5062/api/PinnedPost";
+  final String _baseUrl = "https://commpinboarddb-hchxgbe6hsh9fddx.southeastasia-01.azurewebsites.net/api/PinnedPost";
 
   Future<List<Map<String, dynamic>>> getPinnedPosts(String userId) async {
   try {
@@ -46,16 +46,20 @@ class PinPostController {
         Uri.parse(_baseUrl),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
-          "postId": postId,
-          "userId": userId,
-          }),
+          "postId": int.parse(postId),
+          "userId": int.parse(userId)
+        }),
       );
-      return response.statusCode == 200;
+
+      print("Pin Post Response: ${response.statusCode} - ${response.body}");
+
+      return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
       print("Error pinning post: $e");
       return false;
     }
   }
+
 
   Future<bool> unpinPost(String postId, String userId) async {
     try {

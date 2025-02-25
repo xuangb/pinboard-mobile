@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthController {
-  final String baseUsersUrl = "http://10.0.2.2:5062/api/User";
+  final String baseUsersUrl = "https://commpinboarddb-hchxgbe6hsh9fddx.southeastasia-01.azurewebsites.net/api/User";
 
   final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
 

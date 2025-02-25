@@ -5,9 +5,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class CommentController {
   final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
 
-  final String _baseCommentsUrl = "http://10.0.2.2:5062/api/Comment";
-  final String _baseUserUrl = "http://10.0.2.2:5062/api/User";
-  final String _basePostUrl = "http://10.0.2.2:5062/api/Post"; // Added for fetching post details
+  final String _baseCommentsUrl = "https://commpinboarddb-hchxgbe6hsh9fddx.southeastasia-01.azurewebsites.net/api/Comment";
+  final String _baseUserUrl = "https://commpinboarddb-hchxgbe6hsh9fddx.southeastasia-01.azurewebsites.net/api/User";
+  final String _basePostUrl = "https://commpinboarddb-hchxgbe6hsh9fddx.southeastasia-01.azurewebsites.net/api/Post"; // Added for fetching post details
 
   // Fetch user details
   Future<String> fetchUserDetails(int userId) async {

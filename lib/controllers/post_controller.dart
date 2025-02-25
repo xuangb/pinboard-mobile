@@ -5,8 +5,8 @@ class PostController {
   // final String _baseUrl = "https://commpinboarddb-hchxgbe6hsh9fddx.southeastasia-01.azurewebsites.net/api/Post";
   //final String _basePostsUrl = "https://commpinboarddb-hchxgbe6hsh9fddx.southeastasia-01.azurewebsites.net/api/Post/withUsers";
 
-  final String _baseUrl = "http://10.0.2.2:5062/api/Post";
-  final String _basePostsUrl = "http://10.0.2.2:5062/api/Post/withUsers";
+  final String _baseUrl = "https://commpinboarddb-hchxgbe6hsh9fddx.southeastasia-01.azurewebsites.net/api/Post";
+  final String _basePostsUrl = "https://commpinboarddb-hchxgbe6hsh9fddx.southeastasia-01.azurewebsites.net/api/Post/withUsers";
 
   Future<bool> verifyConnection() async {
     try {
@@ -82,11 +82,4 @@ class PostController {
         return false;
       }
     }
-
-
-
-
-
-
-
 }

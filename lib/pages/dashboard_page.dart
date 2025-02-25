@@ -32,8 +32,10 @@ class DashboardPageState extends State<DashboardPage> {
   List<Map<String, dynamic>> posts = [];
   Map<String, bool> expandedPosts = {};
   List<Map<String, dynamic>> pinnedPosts = [];
+  
   String _userName = "Loading....";
   String _userId = "0";
+  bool isPinned = false;
 
 
   @override
@@ -46,7 +48,7 @@ class DashboardPageState extends State<DashboardPage> {
   void initState(){
     super.initState();
     _loadUserName();
-_fetchPostsAndPinned();
+    _fetchPostsAndPinned();
     _checkConnection();
   }
 
@@ -86,33 +88,45 @@ _fetchPostsAndPinned();
   // }
 
   void _fetchPostsAndPinned() async {
-  // Fetch posts first
-  List<dynamic> fetchedPosts = await _postController.fetchPosts();
-  setState(() {
-    posts = List<Map<String, dynamic>>.from(fetchedPosts);
-  });
+    List<dynamic> fetchedPosts = await _postController.fetchPosts();
+    List<dynamic> fetchedPinnedPosts = await _pinPostController.getPinnedPosts(_userId);
+    
+    Set<dynamic> pinnedPostIds = fetchedPinnedPosts.map((post) => post["id"]).toSet();
 
-  // Then fetch pinned posts
-  List<dynamic> fetchedPinnedPosts = await _pinPostController.getPinnedPosts(_userId);
-  setState(() {
-    pinnedPosts = List<Map<String, dynamic>>.from(fetchedPinnedPosts);
-  });
+    setState(() {
+      posts = List<Map<String, dynamic>>.from(fetchedPosts)
+          .where((post) => !pinnedPostIds.contains(post["postId"])) // Exclude pinned posts
+          .toList();
 
-  print("fetched pinned: $pinnedPosts");
-}
+      pinnedPosts = List<Map<String, dynamic>>.from(fetchedPinnedPosts);
+    });
 
-  void _togglePinStatus(String postId) async {
-  bool isPinned = pinnedPosts.any((post) => post["postId"] == postId);
-
-  if (isPinned) {
-    await _pinPostController.unpinPost(postId, _userId);
-  } else {
-    await _pinPostController.pinPost(postId, _userId);
+    print("Filtered posts: $posts");
   }
 
-  // Refresh the pinned posts to reflect the changes
-  _fetchPostsAndPinned();
-}
+
+  void togglePin(dynamic postId, dynamic userId) async {
+    bool success;
+    if (posts.any((post) => post["postId"] == postId && post["isPinned"] == true)) {
+      success = await _pinPostController.unpinPost(postId.toString(), userId.toString());
+    } else {
+      success = await _pinPostController.pinPost(postId.toString(), userId.toString());
+    }
+
+    if (success) {
+      setState(() {
+        for (var post in posts) {
+          if (post["postId"] == postId) {
+            post["isPinned"] = !(post["isPinned"] ?? false);
+            break;
+          }
+        }
+      });
+    } else {
+      print("Failed to pin/unpin post");
+    }
+  }
+
 
 
 
@@ -450,7 +464,7 @@ _fetchPostsAndPinned();
                           ),
                           color: Colors.white, // White base to blend with the gradient
                           onPressed: () {
-                            _togglePinStatus(postId);
+                            togglePin(postId.toString(), _userId.toString()); // Convert to String
                           },
                         ),
                       ),
